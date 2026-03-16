@@ -1,0 +1,100 @@
+{
+  "article_preview": "The Eiffel Tower was built in 1889 in Paris. It is the tallest building in the world....",
+  "total_claims": 3,
+  "verifiable_claims": 3,
+  "opinion_claims": 0,
+  "ambiguous_claims": 0,
+  "verification_results": [
+    {
+      "claim_id": "claim_1",
+      "claim": "The Eiffel Tower was built in 1889.",
+      "verdict": "TRUE",
+      "confidence": "HIGH",
+      "explanation": "The Eiffel Tower was indeed completed and opened on March 31, 1889. Multiple authoritative sources confirm this date, including the official Eiffel Tower website, Wikipedia, and History.com. The construction began in January 1887 and was finished on March 31, 1889, after 2 years, 2 months, and 5 days of work. On the same day it was completed, there was a dedication ceremony presided over by Gustave Eiffel himself.",
+      "evidence": [
+        {
+          "snippet": "On March 31, 1889, the Eiffel Tower is dedicated in Paris in a ceremony presided over by Gustave Eiffel, the tower's designer, and attended by French Prime Minister Pierre Tirard",
+          "url": "https://www.history.com/this-day-in-history/march-31/eiffel-tower-opens",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "On the 31st March 1889, the Tower had been finished in record time – 2 years, 2 months and 5 days – and was established as a veritable technical feat",
+          "url": "https://www.toureiffel.paris/en/the-monument/history",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "After 2 years, 2 months and 5 days of construction works, the Eiffel Tower was completed on March 31, 1889. The very same day, Gustave Eiffel inaugurated the Tower",
+          "url": "https://www.toureiffel.paris/en/news/history-and-culture/133-years-and-1083-feet",
+          "relevance": "HIGH"
+        }
+      ],
+      "search_queries_used": [
+        "Eiffel Tower construction completion date 1889",
+        "\"Eiffel Tower\" \"March 31 1889\" completion opening ceremony"
+      ],
+      "verification_timestamp": "2026-03-14T19:50:01.660Z"
+    },
+    {
+      "claim_id": "claim_2",
+      "claim": "The Eiffel Tower was built in Paris.",
+      "verdict": "TRUE",
+      "confidence": "HIGH",
+      "explanation": "The claim is completely accurate. Multiple reliable sources confirm that the Eiffel Tower was indeed built in Paris, France. The tower is located on the Champ de Mars in Paris's 7th arrondissement, at the address 5 Avenue Anatole France, 75007 Paris, France. Construction began in 1887 and was completed in 1889 for the International Exposition (World's Fair) of 1889. The tower was designed and built by Gustave Eiffel's company.",
+      "evidence": [
+        {
+          "snippet": "The Eiffel Tower is a lattice tower on the Champ de Mars in Paris, France. It is named after the engineer Gustave Eiffel, whose company designed and built the tower from 1887 to 1889.",
+          "url": "https://en.wikipedia.org/wiki/Eiffel_Tower",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "The tenth Exposition Universelle was organised in Paris in 1889, from the 15th May to the 6th November, and it was for this occasion that the Eiffel Tower was built.",
+          "url": "https://www.toureiffel.paris/en/the-monument/history",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "The address for the Eiffel Tower is Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France.",
+          "url": "https://www.factsjustforkids.com/engineering-facts/eiffel-tower-facts-for-kids/",
+          "relevance": "HIGH"
+        }
+      ],
+      "search_queries_used": [
+        "Eiffel Tower built Paris location history",
+        "\"Eiffel Tower\" \"Paris France\" construction location address"
+      ],
+      "verification_timestamp": "2026-03-14T19:50:13.742Z"
+    },
+    {
+      "claim_id": "claim_3",
+      "claim": "The Eiffel Tower is the tallest building in the world.",
+      "verdict": "FALSE",
+      "confidence": "HIGH",
+      "explanation": "The claim that the Eiffel Tower is the tallest building in the world is definitively false. The Eiffel Tower stands at 330 meters (1,083 feet) tall, while the current tallest building in the world is the Burj Khalifa in Dubai at 828 meters (2,717 feet) tall - more than twice the height of the Eiffel Tower. Additionally, there's a technical distinction to note: the Eiffel Tower is classified as a tower/structure rather than a building, and even among structures, it is not the tallest globally.",
+      "evidence": [
+        {
+          "snippet": "The tower is 330 metres (1,083 ft) tall, about the same height as an 81-storey building, and the tallest structure in Paris.",
+          "url": "https://en.wikipedia.org/wiki/Eiffel_Tower",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "The 828-metre-tall (2,717 ft) Burj Khalifa in Dubai has been the tallest building since 2009.",
+          "url": "https://en.wikipedia.org/wiki/List_of_tallest_buildings",
+          "relevance": "HIGH"
+        },
+        {
+          "snippet": "At 828 m (2,716 ft 6 in) tall, the Burj is more than twice the height of the Empire State Building, and almost three times the size of the Eiffel Tower.",
+          "url": "https://www.guinnessworldrecords.com/records/hall-of-fame/burj-khalifa-tallest-building-in-the-world",
+          "relevance": "HIGH"
+        }
+      ],
+      "search_queries_used": [
+        "Eiffel Tower height tallest building world",
+        "tallest building in the world 2024 current record"
+      ],
+      "verification_timestamp": "2026-03-14T19:50:26.137Z"
+    }
+  ],
+  "summary": "This fact-check analysis examined three claims about the Eiffel Tower, revealing a mix of accurate historical facts and one significant error. Two of the three claims were verified as completely true: the Eiffel Tower was indeed built in 1889 (completed on March 31, 1889) and was constructed in Paris, France, specifically on the Champ de Mars. These historical facts are well-documented by multiple authoritative sources including the official Eiffel Tower website and historical records. However, the claim that the Eiffel Tower is the tallest building in the world is definitively false. While the Eiffel Tower stands at 330 meters (1,083 feet), the current tallest building is the Burj Khalifa in Dubai at 828 meters (2,717 feet) - more than twice the Eiffel Tower's height. This represents a factual error that significantly misrepresents current global building height records. Overall, the source material contains accurate historical information about the Eiffel Tower's construction but includes outdated or incorrect claims about its current status as a world record holder.",
+  "generated_at": "2026-03-14T19:50:31.764Z",
+  "job_id": "8a341ccd-5af7-4105-bb29-5e57537140d5",
+  "request_timestamp": "2026-03-14T19:50:31.765Z"
+}

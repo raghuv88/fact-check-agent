@@ -1,0 +1,32 @@
+{
+  "name": "fact-check-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "nodemon --exec tsx src/server.ts",
+    "fact-check": "tsx src/fact-checker.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "axios": "^1.13.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.1",
+    "helmet": "^8.1.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.9.36",
+    "@types/cors": "^2.8.19",
+    "@types/dotenv": "^8.2.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.2",
+    "@types/uuid": "^10.0.0",
+    "nodemon": "^3.1.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
