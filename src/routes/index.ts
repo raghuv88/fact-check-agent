@@ -3,7 +3,7 @@ import { body } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
 import { validateRequest } from '../middleware/errorHandler.js';
 import { factCheckArticle, displayReport, saveReport } from '../fact-checker.js';
-import { extractClaims } from '../agents/index.js';
+import { extractClaims, verifyClaim, generateReport } from '../agents/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -23,6 +23,7 @@ export function registerRoutes(app: Application): void {
   console.log('📋 Routes registered:');
   console.log('   GET  /health');
   console.log('   POST /api/v1/factcheck/text');
+  console.log('   POST /api/v1/factcheck/stream  (SSE)');
   console.log('   POST /api/v1/factcheck/url');
   console.log('   POST /api/v1/factcheck/claims');
   console.log('   GET  /api/v1/reports');
@@ -184,6 +185,92 @@ function factCheckRouter(): Router {
         });
       } catch (error) {
         next(error);
+      }
+    }
+  );
+
+  /**
+   * POST /api/v1/factcheck/stream
+   * Fact-check with Server-Sent Events — streams progress as claims are verified
+   *
+   * Body: { text: string }
+   */
+  router.post(
+    '/stream',
+    [
+      body('text')
+        .notEmpty().withMessage('Article text is required')
+        .isLength({ min: 50 }).withMessage('Text must be at least 50 characters')
+        .isLength({ max: 50000 }).withMessage('Text must not exceed 50,000 characters'),
+    ],
+    validateRequest,
+    async (req: Request, res: Response) => {
+      const { text } = req.body;
+      const jobId = uuidv4();
+
+      // SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      const send = (data: object) => {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
+
+      try {
+        // Step 1 — extract claims
+        send({ type: 'status', message: 'Extracting claims from article…' });
+        const extractionResult = await extractClaims(text);
+
+        const verifiable = extractionResult.claims.filter(c => c.category === 'VERIFIABLE');
+        const opinions   = extractionResult.claims.filter(c => c.category !== 'VERIFIABLE');
+
+        send({
+          type: 'claims_extracted',
+          verifiable_claims: verifiable,
+          opinion_claims: opinions,
+          total: verifiable.length,
+        });
+
+        // Step 2 — verify each claim
+        const verificationResults = [];
+        for (let i = 0; i < verifiable.length; i++) {
+          const claim = verifiable[i];
+          send({
+            type: 'claim_verifying',
+            claim_id: claim.id,
+            claim: claim.claim,
+            index: i + 1,
+            total: verifiable.length,
+          });
+
+          try {
+            const result = await verifyClaim(claim);
+            verificationResults.push(result);
+            send({
+              type: 'claim_verified',
+              result,
+              index: i + 1,
+              total: verifiable.length,
+            });
+          } catch (err) {
+            console.error(`Failed to verify claim ${claim.id}:`, err);
+          }
+        }
+
+        // Step 3 — generate final report
+        send({ type: 'status', message: 'Generating final report…' });
+        const report = await generateReport(extractionResult, verificationResults);
+        const enrichedReport = { ...report, job_id: jobId, request_timestamp: new Date().toISOString() };
+        saveReport(enrichedReport as any, `report-${jobId}.json`);
+
+        send({ type: 'complete', report: enrichedReport, job_id: jobId });
+      } catch (err: any) {
+        send({ type: 'error', message: err?.message || 'Fact-check failed' });
+      } finally {
+        res.end();
       }
     }
   );
