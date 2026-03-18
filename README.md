@@ -68,18 +68,81 @@ npm start      # Production
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/factcheck/text` | Fact-check raw text |
+| `POST` | `/api/v1/factcheck/text` | Fact-check raw text (waits for full result) |
+| `POST` | `/api/v1/factcheck/stream` | Fact-check with real-time SSE streaming |
 | `POST` | `/api/v1/factcheck/url` | Fact-check article at URL |
-| `POST` | `/api/v1/factcheck/claims` | Extract claims only |
+| `POST` | `/api/v1/factcheck/claims` | Extract claims only (no verification) |
 | `GET` | `/api/v1/reports` | List saved reports |
-| `POST` | `/api/v1/reports` | Save a report |
+| `GET` | `/api/v1/reports/:id` | Get a specific report |
+| `DELETE` | `/api/v1/reports/:id` | Delete a report |
 
-### Example Request
+### POST /api/v1/factcheck/text
+
+Synchronous endpoint — waits for the entire fact-check to complete before returning. May time out for long articles.
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/factcheck/text \
   -H "Content-Type: application/json" \
   -d '{"text": "The Great Wall of China is visible from space."}'
+```
+
+### POST /api/v1/factcheck/stream
+
+Streaming endpoint using **Server-Sent Events (SSE)**. Returns a stream of JSON events as each claim is extracted and verified in real-time — no timeout issues for long articles.
+
+**Request body:** `{ "text": string }`
+
+**Response:** `Content-Type: text/event-stream`
+
+Each line is a `data: <json>\n\n` SSE event. Event types:
+
+| Event type | When | Payload |
+|------------|------|---------|
+| `status` | Processing milestones | `{ type, message }` |
+| `claims_extracted` | After claim extraction | `{ type, verifiable_claims, opinion_claims, total }` |
+| `claim_verifying` | Before each claim is verified | `{ type, claim_id, claim, index, total }` |
+| `claim_verified` | After each claim is verified | `{ type, result, index, total }` |
+| `complete` | All done | `{ type, report, job_id }` |
+| `error` | On failure | `{ type, message }` |
+
+**Example — consume stream with curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/v1/factcheck/stream \
+  -H "Content-Type: application/json" \
+  -d '{"text": "The Great Wall of China is visible from space."}' \
+  --no-buffer
+```
+
+**Example — consume stream in JavaScript:**
+
+```js
+const response = await fetch('http://localhost:3000/api/v1/factcheck/stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text: articleText }),
+});
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+
+  buffer += decoder.decode(value, { stream: true });
+  const parts = buffer.split('\n\n');
+  buffer = parts.pop() ?? '';
+
+  for (const part of parts) {
+    const json = part.replace(/^data:\s*/, '').trim();
+    if (json) {
+      const event = JSON.parse(json);
+      console.log(event.type, event);
+    }
+  }
+}
 ```
 
 ## Project Structure
