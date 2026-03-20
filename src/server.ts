@@ -2,6 +2,10 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { createApp } from './app.js';
+import { runMigrations } from './db/index.js';
+
+// Run DB migrations before starting
+runMigrations();
 
 const PORT = process.env.PORT || 3000;
 const app = createApp();

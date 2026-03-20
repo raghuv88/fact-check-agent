@@ -5,6 +5,7 @@ import { validateRequest } from '../middleware/errorHandler.js';
 import { factCheckArticle, displayReport, saveReport } from '../fact-checker.js';
 import { extractClaims, verifyClaim, generateReport } from '../agents/index.js';
 import { TokenTracker } from '../middleware/tokenTracker.js';
+import { createRequest, markProcessing, markComplete, markFailed, saveTokenUsageSteps } from '../db/repository.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -83,25 +84,34 @@ function factCheckRouter(): Router {
         console.log(`\n📥 Received fact-check request (job: ${jobId})`);
         console.log(`   Text length: ${text.length} chars`);
 
-        // Start fact-checking (async)
-        const report = await factCheckArticle(text);
+        createRequest(jobId, text);
+        markProcessing(jobId);
 
-        // Add job metadata
-        const enrichedReport = {
-          ...report,
-          job_id: jobId,
-          request_timestamp: new Date().toISOString(),
-        };
+        try {
+          const report = await factCheckArticle(text);
 
-        // Save report
-        const filename = `report-${jobId}.json`;
-        saveReport(enrichedReport as any, filename);
+          if (report.token_usage) {
+            markComplete(jobId, report.token_usage);
+            saveTokenUsageSteps(jobId, report.token_usage);
+          }
 
-        res.status(200).json({
-          success: true,
-          job_id: jobId,
-          data: enrichedReport,
-        });
+          const enrichedReport = {
+            ...report,
+            job_id: jobId,
+            request_timestamp: new Date().toISOString(),
+          };
+
+          saveReport(enrichedReport as any, `report-${jobId}.json`);
+
+          res.status(200).json({
+            success: true,
+            job_id: jobId,
+            data: enrichedReport,
+          });
+        } catch (err) {
+          markFailed(jobId);
+          throw err;
+        }
       } catch (error) {
         next(error);
       }
@@ -160,30 +170,42 @@ function factCheckRouter(): Router {
 
         console.log(`\n📥 Received URL fact-check request: ${url}`);
 
+        const jobId = uuidv4();
+
         // Fetch article content from URL
         const { fetchArticle } = await import('../tools/index.js');
         const articleJson = await fetchArticle(url);
         const article = JSON.parse(articleJson);
 
-        // Fact check the content
-        const report = await factCheckArticle(article.content);
-        const jobId = uuidv4();
+        createRequest(jobId, article.content);
+        markProcessing(jobId);
 
-        const enrichedReport = {
-          ...report,
-          job_id: jobId,
-          article_source: url,
-          request_timestamp: new Date().toISOString(),
-        };
+        try {
+          const report = await factCheckArticle(article.content);
 
-        const filename = `report-${jobId}.json`;
-        saveReport(enrichedReport as any, filename);
+          if (report.token_usage) {
+            markComplete(jobId, report.token_usage);
+            saveTokenUsageSteps(jobId, report.token_usage);
+          }
 
-        res.status(200).json({
-          success: true,
-          job_id: jobId,
-          data: enrichedReport,
-        });
+          const enrichedReport = {
+            ...report,
+            job_id: jobId,
+            article_source: url,
+            request_timestamp: new Date().toISOString(),
+          };
+
+          saveReport(enrichedReport as any, `report-${jobId}.json`);
+
+          res.status(200).json({
+            success: true,
+            job_id: jobId,
+            data: enrichedReport,
+          });
+        } catch (err) {
+          markFailed(jobId);
+          throw err;
+        }
       } catch (error) {
         next(error);
       }
@@ -209,6 +231,8 @@ function factCheckRouter(): Router {
       const { text } = req.body;
       const jobId = uuidv4();
 
+      createRequest(jobId, text);
+
       // SSE headers
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -226,6 +250,8 @@ function factCheckRouter(): Router {
       });
 
       try {
+        markProcessing(jobId);
+
         // Step 1 — extract claims
         send({ type: 'status', message: 'Extracting claims from article…' });
         const extractionResult = await extractClaims(text, tracker);
@@ -277,10 +303,13 @@ function factCheckRouter(): Router {
           request_timestamp: new Date().toISOString(),
           token_usage: tokenSummary,
         };
+        markComplete(jobId, tokenSummary);
+        saveTokenUsageSteps(jobId, tokenSummary);
         saveReport(enrichedReport as any, `report-${jobId}.json`);
 
         send({ type: 'complete', report: enrichedReport, job_id: jobId, token_usage: tokenSummary });
       } catch (err: any) {
+        markFailed(jobId);
         send({ type: 'error', message: err?.message || 'Fact-check failed' });
       } finally {
         res.end();

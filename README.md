@@ -24,6 +24,7 @@ A multi-agent AI system that verifies factual claims in articles and text using 
 - **AI**: Anthropic Claude (`claude-sonnet-4-20250514`)
 - **Web Search**: Serper API (Google Search)
 - **API**: Express.js 5
+- **Database**: SQLite via Drizzle ORM (usage tracking)
 
 ## Getting Started
 
@@ -192,6 +193,11 @@ In the stream endpoint, a `token_usage` event is emitted in real time after each
 ```
 src/
 ├── agents/              # Claim extractor, fact verifier, report generator agents
+├── db/
+│   ├── schema.ts        # Drizzle table definitions
+│   ├── index.ts         # DB connection + migration runner
+│   ├── repository.ts    # CRUD helpers (createRequest, markComplete, etc.)
+│   └── migrations/      # SQL migration files (auto-applied on startup)
 ├── tools/               # Web search and article fetching tools
 ├── routes/              # API endpoint handlers
 ├── middleware/
@@ -201,13 +207,51 @@ src/
 ├── fact-checker.ts      # Main orchestration logic
 ├── server.ts            # Express server entry point
 └── types.ts             # TypeScript interfaces
+data/
+└── usage.db             # SQLite database (gitignored)
+reports/                 # Saved JSON reports (gitignored)
+```
+
+## Database
+
+SQLite database at `data/usage.db` is created automatically on first startup. It tracks three tables:
+
+| Table | Purpose |
+|-------|---------|
+| `fact_check_requests` | One row per job — status, total tokens/cost/duration |
+| `token_usage` | One row per agent step — per-step token breakdown |
+| `verified_claims_cache` | Cache of verified claims for future reuse |
+
+### Inspect the database
+
+```bash
+# Drizzle Studio (web UI)
+npm run db:studio
+
+# SQLite CLI
+sqlite3 data/usage.db
+.tables
+SELECT * FROM fact_check_requests;
+SELECT * FROM token_usage;
+.quit
+```
+
+### DB scripts
+
+```bash
+npm run db:generate   # Generate new migration from schema changes
+npm run db:migrate    # Apply pending migrations
+npm run db:studio     # Open Drizzle Studio web UI
 ```
 
 ## Scripts
 
 ```bash
-npm run dev        # Start dev server with hot reload
-npm start          # Start production server
-npm run build      # Compile TypeScript
-npm run fact-check # Run CLI fact-checker
+npm run dev           # Start dev server with hot reload
+npm start             # Start production server
+npm run build         # Compile TypeScript
+npm run fact-check    # Run CLI fact-checker
+npm run db:generate   # Generate DB migration
+npm run db:migrate    # Apply DB migrations
+npm run db:studio     # Browse DB in web UI
 ```
