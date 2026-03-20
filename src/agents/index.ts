@@ -7,8 +7,10 @@ import {
   FactCheckReport,
   VerificationVerdict,
   ConfidenceLevel,
+  AgentType,
 } from "../types.js";
 import { tools, executeTool } from "../tools/index.js";
+import { TokenTracker } from "../middleware/tokenTracker.js";
 
 dotenv.config();
 
@@ -38,14 +40,23 @@ function cleanJsonResponse(text: string): string {
   return cleaned;
 }
 
+const MODEL = "claude-sonnet-4-20250514";
+
 /**
- * Helper: Run agentic loop with tool support
+ * Helper: Run agentic loop with tool support.
+ * Accumulates token usage across all iterations and records one step entry
+ * on the tracker when provided.
  */
 async function runAgenticLoop(
   systemPrompt: string,
   userMessage: string,
   maxIterations: number = 5,
+  trackerContext?: { tracker: TokenTracker; stepName: string; agentType: AgentType },
 ): Promise<string> {
+  const loopStart = Date.now();
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
@@ -54,12 +65,15 @@ async function runAgenticLoop(
   ];
 
   let response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: MODEL,
     max_tokens: 4096,
     system: systemPrompt,
     tools: tools,
     messages: messages,
   });
+
+  totalInputTokens += response.usage.input_tokens;
+  totalOutputTokens += response.usage.output_tokens;
 
   let iterationCount = 0;
 
@@ -88,7 +102,7 @@ async function runAgenticLoop(
     for (const toolUseBlock of toolUseBlocks) {
       const toolResult = await executeTool(
         toolUseBlock.name,
-        toolUseBlock.input,
+        toolUseBlock.input as Record<string, any>,
       );
 
       toolResults.push({
@@ -106,11 +120,26 @@ async function runAgenticLoop(
 
     // Get next response
     response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL,
       max_tokens: 4096,
       system: systemPrompt,
       tools: tools,
       messages: messages,
+    });
+
+    totalInputTokens += response.usage.input_tokens;
+    totalOutputTokens += response.usage.output_tokens;
+  }
+
+  // Record aggregated token usage for this step
+  if (trackerContext) {
+    trackerContext.tracker.record({
+      step: trackerContext.stepName,
+      agentType: trackerContext.agentType,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      model: MODEL,
+      durationMs: Date.now() - loopStart,
     });
   }
 
@@ -128,6 +157,7 @@ async function runAgenticLoop(
  */
 export async function extractClaims(
   articleText: string,
+  tracker?: TokenTracker,
 ): Promise<ClaimExtractionResult> {
   console.log("\n🔍 AGENT 1: CLAIM EXTRACTOR");
   console.log("=".repeat(60));
@@ -162,6 +192,8 @@ Output ONLY valid JSON in this format:
   const response = await runAgenticLoop(
     systemPrompt,
     `Extract all claims from this article:\n\n${articleText}`,
+    5,
+    tracker ? { tracker, stepName: 'Extract Claims', agentType: 'claim_extractor' } : undefined,
   );
 
   try {
@@ -199,7 +231,11 @@ Output ONLY valid JSON in this format:
  * AGENT 2: Fact Verifier
  * Verifies a single claim using web search
  */
-export async function verifyClaim(claim: Claim): Promise<VerificationResult> {
+export async function verifyClaim(
+  claim: Claim,
+  tracker?: TokenTracker,
+  claimIndex?: number,
+): Promise<VerificationResult> {
   console.log(`\n🔎 AGENT 2: FACT VERIFIER - Verifying claim ${claim.id}`);
   console.log("=".repeat(60));
   console.log(`Claim: "${claim.claim}"`);
@@ -231,9 +267,12 @@ Output ONLY valid JSON:
 
 CRITICAL: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. Do NOT include any explanation before or after the JSON.`;
 
+  const stepName = claimIndex !== undefined ? `Verify Claim ${claimIndex}` : `Verify ${claim.id}`;
   const response = await runAgenticLoop(
     systemPrompt,
     `Verify this claim: "${claim.claim}"`,
+    5,
+    tracker ? { tracker, stepName, agentType: 'verifier' } : undefined,
   );
 
   try {
@@ -270,6 +309,7 @@ CRITICAL: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. D
 export async function generateReport(
   extractionResult: ClaimExtractionResult,
   verificationResults: VerificationResult[],
+  tracker?: TokenTracker,
 ): Promise<FactCheckReport> {
   console.log("\n📊 AGENT 3: REPORT GENERATOR");
   console.log("=".repeat(60));
@@ -302,6 +342,8 @@ CRITICAL: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. D
   const response = await runAgenticLoop(
     systemPrompt,
     `Generate a fact-check report summary for:\n\n${JSON.stringify(input, null, 2)}`,
+    5,
+    tracker ? { tracker, stepName: 'Generate Report', agentType: 'report_generator' } : undefined,
   );
 
   try {

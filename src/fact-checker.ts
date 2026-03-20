@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { extractClaims, verifyClaim, generateReport } from "./agents/index.js";
 import { FactCheckReport } from "./types.js";
+import { TokenTracker } from "./middleware/tokenTracker.js";
 
 /**
  * Main orchestrator: Coordinates all agents to fact-check an article
@@ -15,10 +16,12 @@ export async function factCheckArticle(
 
   const startTime = Date.now();
 
+  const tracker = new TokenTracker();
+
   try {
     // STEP 1: Extract claims from article
     console.log("\n📋 Step 1/3: Extracting claims...");
-    const extractionResult = await extractClaims(articleText);
+    const extractionResult = await extractClaims(articleText, tracker);
 
     // Filter to only verifiable claims (opinions don't need verification)
     const verifiableClaims = extractionResult.claims.filter(
@@ -38,7 +41,7 @@ export async function factCheckArticle(
       console.log(`\n[${i + 1}/${verifiableClaims.length}] Verifying...`);
 
       try {
-        const verification = await verifyClaim(claim);
+        const verification = await verifyClaim(claim, tracker, i + 1);
         verificationResults.push(verification);
       } catch (error) {
         console.error(`❌ Failed to verify claim ${claim.id}:`, error);
@@ -48,14 +51,16 @@ export async function factCheckArticle(
 
     // STEP 3: Generate report
     console.log("\n📊 Step 3/3: Generating report...");
-    const report = await generateReport(extractionResult, verificationResults);
+    const report = await generateReport(extractionResult, verificationResults, tracker);
 
+    const tokenSummary = tracker.getSummary();
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log("\n" + "=".repeat(80));
     console.log(`✅ FACT-CHECK COMPLETE in ${duration}s`);
+    console.log(`   Tokens: ${tokenSummary.totalTokens.toLocaleString()} | Cost: $${tokenSummary.totalCost.toFixed(4)}`);
     console.log("=".repeat(80));
 
-    return report;
+    return { ...report, token_usage: tokenSummary };
   } catch (error) {
     console.error("\n❌ FACT-CHECK FAILED:", error);
     throw error;

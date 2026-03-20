@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateRequest } from '../middleware/errorHandler.js';
 import { factCheckArticle, displayReport, saveReport } from '../fact-checker.js';
 import { extractClaims, verifyClaim, generateReport } from '../agents/index.js';
+import { TokenTracker } from '../middleware/tokenTracker.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -219,10 +220,15 @@ function factCheckRouter(): Router {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
       };
 
+      // Token tracker — emits a token_usage SSE event after each agent step
+      const tracker = new TokenTracker((usage) => {
+        send({ type: 'token_usage', data: usage });
+      });
+
       try {
         // Step 1 — extract claims
         send({ type: 'status', message: 'Extracting claims from article…' });
-        const extractionResult = await extractClaims(text);
+        const extractionResult = await extractClaims(text, tracker);
 
         const verifiable = extractionResult.claims.filter(c => c.category === 'VERIFIABLE');
         const opinions   = extractionResult.claims.filter(c => c.category !== 'VERIFIABLE');
@@ -247,7 +253,7 @@ function factCheckRouter(): Router {
           });
 
           try {
-            const result = await verifyClaim(claim);
+            const result = await verifyClaim(claim, tracker, i + 1);
             verificationResults.push(result);
             send({
               type: 'claim_verified',
@@ -262,11 +268,18 @@ function factCheckRouter(): Router {
 
         // Step 3 — generate final report
         send({ type: 'status', message: 'Generating final report…' });
-        const report = await generateReport(extractionResult, verificationResults);
-        const enrichedReport = { ...report, job_id: jobId, request_timestamp: new Date().toISOString() };
+        const report = await generateReport(extractionResult, verificationResults, tracker);
+
+        const tokenSummary = tracker.getSummary();
+        const enrichedReport = {
+          ...report,
+          job_id: jobId,
+          request_timestamp: new Date().toISOString(),
+          token_usage: tokenSummary,
+        };
         saveReport(enrichedReport as any, `report-${jobId}.json`);
 
-        send({ type: 'complete', report: enrichedReport, job_id: jobId });
+        send({ type: 'complete', report: enrichedReport, job_id: jobId, token_usage: tokenSummary });
       } catch (err: any) {
         send({ type: 'error', message: err?.message || 'Fact-check failed' });
       } finally {

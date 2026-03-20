@@ -102,7 +102,8 @@ Each line is a `data: <json>\n\n` SSE event. Event types:
 | `claims_extracted` | After claim extraction | `{ type, verifiable_claims, opinion_claims, total }` |
 | `claim_verifying` | Before each claim is verified | `{ type, claim_id, claim, index, total }` |
 | `claim_verified` | After each claim is verified | `{ type, result, index, total }` |
-| `complete` | All done | `{ type, report, job_id }` |
+| `token_usage` | After each agent step completes | `{ type, data: TokenStepUsage }` |
+| `complete` | All done | `{ type, report, job_id, token_usage }` |
 | `error` | On failure | `{ type, message }` |
 
 **Example — consume stream with curl:**
@@ -145,17 +146,61 @@ while (true) {
 }
 ```
 
+### Token Usage Tracking
+
+Every fact-check response (streaming and synchronous) includes a `token_usage` summary showing how many tokens were consumed and the estimated cost per step.
+
+**`token_usage` summary shape** (present in `complete` event and saved reports):
+
+```json
+{
+  "totalTokens": 12450,
+  "totalCost": 0.0951,
+  "totalDurationMs": 12700,
+  "totalSteps": 5,
+  "steps": [
+    {
+      "step": "Extract Claims",
+      "stepNumber": 1,
+      "agentType": "claim_extractor",
+      "tokens": { "input": 1234, "output": 567, "total": 1801 },
+      "cost": 0.0122,
+      "durationMs": 2300,
+      "cumulative": { "tokens": 1801, "cost": 0.0122, "durationMs": 2300 }
+    },
+    {
+      "step": "Verify Claim 1",
+      "stepNumber": 2,
+      "agentType": "verifier",
+      "tokens": { "input": 2100, "output": 890, "total": 2990 },
+      "cost": 0.0196,
+      "durationMs": 8100,
+      "cumulative": { "tokens": 4791, "cost": 0.0318, "durationMs": 10400 }
+    }
+  ]
+}
+```
+
+**Pricing used** (Anthropic claude-sonnet-4-20250514):
+- Input: $3.00 per million tokens
+- Output: $15.00 per million tokens
+
+In the stream endpoint, a `token_usage` event is emitted in real time after each agent step completes, so the UI can display a live cost/token breakdown as the fact-check progresses.
+
 ## Project Structure
 
 ```
 src/
-├── agents/         # Claim extractor, fact verifier, report generator agents
-├── tools/          # Web search and article fetching tools
-├── routes/         # API endpoint handlers
-├── middleware/      # Error handling and request logging
-├── fact-checker.ts # Main orchestration logic
-├── server.ts       # Express server entry point
-└── types.ts        # TypeScript interfaces
+├── agents/              # Claim extractor, fact verifier, report generator agents
+├── tools/               # Web search and article fetching tools
+├── routes/              # API endpoint handlers
+├── middleware/
+│   ├── tokenTracker.ts  # Token usage tracking (wraps all Claude API calls)
+│   ├── errorHandler.ts  # Error handling
+│   └── logger.ts        # Request logging
+├── fact-checker.ts      # Main orchestration logic
+├── server.ts            # Express server entry point
+└── types.ts             # TypeScript interfaces
 ```
 
 ## Scripts

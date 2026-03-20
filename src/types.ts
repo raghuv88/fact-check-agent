@@ -64,6 +64,7 @@ export interface FactCheckReport {
   verification_results: VerificationResult[];
   summary: string;
   generated_at: string;
+  token_usage?: TokenUsageSummary;
 }
 
 // Article content (fetched from URL)
@@ -72,4 +73,30 @@ export interface ArticleContent {
   title?: string;
   content: string;
   fetch_timestamp: string;
+}
+
+// Token usage for a single processing step
+export type AgentType = 'claim_extractor' | 'verifier' | 'report_generator';
+
+export interface TokenStepUsage {
+  step: string;
+  stepNumber: number;
+  agentType: AgentType;
+  tokens: { input: number; output: number; total: number };
+  cost: number;
+  durationMs: number;
+  cumulative: {
+    tokens: number;
+    cost: number;
+    durationMs: number;
+  };
+}
+
+// Aggregated token usage summary for a full fact-check job
+export interface TokenUsageSummary {
+  totalTokens: number;
+  totalCost: number;
+  totalDurationMs: number;
+  totalSteps: number;
+  steps: TokenStepUsage[];
 }
