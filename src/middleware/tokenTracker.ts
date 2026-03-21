@@ -3,10 +3,11 @@ import { AgentType, TokenStepUsage, TokenUsageSummary } from '../types.js';
 // Anthropic pricing per token (not per million)
 const PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-20250514': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
+  'claude-haiku-4-5-20251001': { input: 1 / 1_000_000, output: 5 / 1_000_000 },
 };
 
 function getPrice(model: string) {
-  return PRICING[model] ?? PRICING['claude-sonnet-4-20250514'];
+  return PRICING[model] ?? PRICING['claude-haiku-4-5-20251001'];
 }
 
 export type TokenUsageCallback = (usage: TokenStepUsage) => void;
@@ -53,6 +54,7 @@ export class TokenTracker {
       step: params.step,
       stepNumber: this.stepNumber,
       agentType: params.agentType,
+      model: params.model,
       tokens: { input: params.inputTokens, output: params.outputTokens, total },
       cost,
       durationMs: params.durationMs,

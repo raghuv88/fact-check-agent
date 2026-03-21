@@ -26,7 +26,7 @@ export async function searchWithClaude(query: string): Promise<string> {
   console.log(`  🔍 Searching with Claude: "${query}"`);
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 2048,
     tools: toolsWithWebSearch,
     messages: [
@@ -58,7 +58,7 @@ Use web search to verify claims.
 Provide verdicts as JSON: {"verdict": "TRUE|FALSE|PARTIALLY_TRUE|UNVERIFIABLE", "confidence": "HIGH|MEDIUM|LOW", "explanation": "...", "sources": [...]}`;
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 2048,
     system: systemPrompt,
     tools: toolsWithWebSearch,

@@ -21,7 +21,7 @@ A multi-agent AI system that verifies factual claims in articles and text using 
 ## Tech Stack
 
 - **Runtime**: Node.js + TypeScript
-- **AI**: Anthropic Claude (`claude-sonnet-4-20250514`)
+- **AI**: Anthropic Claude (`claude-haiku-4-5-20251001`)
 - **Web Search**: Serper API (Google Search)
 - **API**: Express.js 5
 - **Database**: SQLite via Drizzle ORM (usage tracking)
@@ -102,10 +102,12 @@ Each line is a `data: <json>\n\n` SSE event. Event types:
 | `status` | Processing milestones | `{ type, message }` |
 | `claims_extracted` | After claim extraction | `{ type, verifiable_claims, opinion_claims, total }` |
 | `claim_verifying` | Before each claim is verified | `{ type, claim_id, claim, index, total }` |
-| `claim_verified` | After each claim is verified | `{ type, result, index, total }` |
+| `claim_verified` | After each claim is verified | `{ type, result, index, total, from_cache }` |
 | `token_usage` | After each agent step completes | `{ type, data: TokenStepUsage }` |
 | `complete` | All done | `{ type, report, job_id, token_usage }` |
 | `error` | On failure | `{ type, message }` |
+
+`from_cache: true` on a `claim_verified` event means the result was served from the local cache — no LLM call was made and 0 tokens were consumed for that claim.
 
 **Example — consume stream with curl:**
 
@@ -167,6 +169,7 @@ Every fact-check response (streaming and synchronous) includes a `token_usage` s
       "tokens": { "input": 1234, "output": 567, "total": 1801 },
       "cost": 0.0122,
       "durationMs": 2300,
+      "cacheHit": false,
       "cumulative": { "tokens": 1801, "cost": 0.0122, "durationMs": 2300 }
     },
     {
@@ -176,15 +179,28 @@ Every fact-check response (streaming and synchronous) includes a `token_usage` s
       "tokens": { "input": 2100, "output": 890, "total": 2990 },
       "cost": 0.0196,
       "durationMs": 8100,
+      "cacheHit": false,
+      "cumulative": { "tokens": 4791, "cost": 0.0318, "durationMs": 10400 }
+    },
+    {
+      "step": "Verify Claim 2",
+      "stepNumber": 3,
+      "agentType": "verifier",
+      "tokens": { "input": 0, "output": 0, "total": 0 },
+      "cost": 0,
+      "durationMs": 0,
+      "cacheHit": true,
       "cumulative": { "tokens": 4791, "cost": 0.0318, "durationMs": 10400 }
     }
   ]
 }
 ```
 
-**Pricing used** (Anthropic claude-sonnet-4-20250514):
-- Input: $3.00 per million tokens
-- Output: $15.00 per million tokens
+Steps with `cacheHit: true` consumed 0 tokens — the result was returned instantly from the local verified-claims cache.
+
+**Pricing used** (Anthropic claude-haiku-4-5-20251001):
+- Input: $1.00 per million tokens
+- Output: $5.00 per million tokens
 
 In the stream endpoint, a `token_usage` event is emitted in real time after each agent step completes, so the UI can display a live cost/token breakdown as the fact-check progresses.
 
@@ -212,6 +228,19 @@ data/
 reports/                 # Saved JSON reports (gitignored)
 ```
 
+## Claim Cache
+
+Identical claims appearing across multiple fact-check requests are served from a local SQLite cache, skipping the LLM verification step entirely. This saves tokens, reduces latency, and lowers cost.
+
+**How it works:**
+
+1. Before calling the verifier agent, the claim text is normalised (lowercased + trimmed) and hashed with SHA-256.
+2. If a matching hash is found in `verified_claims_cache`, the stored verdict, confidence, explanation, and evidence are returned immediately (`from_cache: true`).
+3. On a cache miss the full verifier agent runs, and the result is written to the cache for future reuse.
+4. Each cache hit increments `verification_count` and accumulates `token_savings` on the cache row.
+
+The cache is completely transparent — `VerificationResult` objects include a `from_cache` boolean so consumers can distinguish live verifications from cache hits.
+
 ## Database
 
 SQLite database at `data/usage.db` is created automatically on first startup. It tracks three tables:
@@ -219,8 +248,8 @@ SQLite database at `data/usage.db` is created automatically on first startup. It
 | Table | Purpose |
 |-------|---------|
 | `fact_check_requests` | One row per job — status, total tokens/cost/duration |
-| `token_usage` | One row per agent step — per-step token breakdown |
-| `verified_claims_cache` | Cache of verified claims for future reuse |
+| `token_usage` | One row per agent step — per-step token breakdown; `cache_hit` is `true` for cached verifier steps |
+| `verified_claims_cache` | Cache of previously verified claims — verdict, confidence, explanation, evidence, hit count, and token savings |
 
 ### Inspect the database
 

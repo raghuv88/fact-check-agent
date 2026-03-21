@@ -64,7 +64,7 @@ export function saveTokenUsageSteps(requestId: string, summary: TokenUsageSummar
       agentType: step.agentType,
       stepNumber: step.stepNumber,
       stepName: step.step,
-      model: 'claude-sonnet-4-20250514',
+      model: step.model,
       inputTokens: step.tokens.input,
       outputTokens: step.tokens.output,
       costUsd: step.cost,

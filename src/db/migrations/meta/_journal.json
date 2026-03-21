@@ -15,6 +15,13 @@
       "when": 1742515200000,
       "tag": "0001_cache_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774051200000,
+      "tag": "0002_backfill_model",
+      "breakpoints": true
     }
   ]
 }

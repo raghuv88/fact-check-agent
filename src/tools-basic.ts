@@ -131,7 +131,7 @@ Be thorough and search multiple times if needed to verify different aspects of t
   ];
 
   let response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 2048,
     system: systemPrompt,
     tools: tools,
@@ -199,7 +199,7 @@ Be thorough and search multiple times if needed to verify different aspects of t
 
     // Get next response
     response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 2048,
       system: systemPrompt,
       tools: tools,

@@ -83,6 +83,7 @@ export interface TokenStepUsage {
   step: string;
   stepNumber: number;
   agentType: AgentType;
+  model: string;
   tokens: { input: number; output: number; total: number };
   cost: number;
   durationMs: number;
