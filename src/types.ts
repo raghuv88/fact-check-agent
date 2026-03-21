@@ -51,6 +51,7 @@ export interface VerificationResult {
   evidence: EvidenceSource[];
   search_queries_used: string[];
   verification_timestamp: string;
+  from_cache?: boolean;
 }
 
 // Final fact-check report
@@ -85,6 +86,7 @@ export interface TokenStepUsage {
   tokens: { input: number; output: number; total: number };
   cost: number;
   durationMs: number;
+  cacheHit?: boolean;
   cumulative: {
     tokens: number;
     cost: number;

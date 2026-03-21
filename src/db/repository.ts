@@ -1,8 +1,9 @@
+import { createHash } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './index.js';
-import { factCheckRequests, tokenUsage } from './schema.js';
-import { TokenUsageSummary } from '../types.js';
+import { factCheckRequests, tokenUsage, verifiedClaimsCache } from './schema.js';
+import { TokenUsageSummary, VerificationResult } from '../types.js';
 
 /**
  * Create a new fact-check request record (status: pending)
@@ -68,9 +69,72 @@ export function saveTokenUsageSteps(requestId: string, summary: TokenUsageSummar
       outputTokens: step.tokens.output,
       costUsd: step.cost,
       durationMs: step.durationMs,
-      cacheHit: false,
+      cacheHit: step.cacheHit ?? false,
     }).run();
   }
+}
+
+// ============================================
+// VERIFIED CLAIMS CACHE
+// ============================================
+
+/**
+ * Compute a stable SHA-256 hash for a claim text (normalised: lowercase + trimmed)
+ */
+export function hashClaim(claimText: string): string {
+  return createHash('sha256')
+    .update(claimText.toLowerCase().trim())
+    .digest('hex');
+}
+
+/**
+ * Look up a previously verified claim by its hash. Returns null on miss.
+ */
+export function getCachedClaim(claimHash: string) {
+  return db.select()
+    .from(verifiedClaimsCache)
+    .where(eq(verifiedClaimsCache.claimHash, claimHash))
+    .get() ?? null;
+}
+
+/**
+ * Persist a newly verified claim into the cache.
+ * tokensUsed is stored as the per-hit savings baseline.
+ */
+export function saveCachedClaim(
+  claimText: string,
+  result: VerificationResult,
+  tokensUsed: number,
+): void {
+  const claimHash = hashClaim(claimText);
+  db.insert(verifiedClaimsCache).values({
+    id: uuidv4(),
+    claimText,
+    claimHash,
+    verdict: result.verdict,
+    confidence: result.confidence,
+    explanation: result.explanation,
+    evidence: JSON.stringify(result.evidence),
+    verifiedAt: new Date().toISOString(),
+    verificationCount: 1,
+    tokenSavings: 0,
+    tokensPerVerification: tokensUsed,
+  }).run();
+}
+
+/**
+ * Increment verification_count and accumulate token_savings on a cache hit.
+ */
+export function recordCacheHit(claimHash: string, tokensSaved: number): void {
+  const existing = getCachedClaim(claimHash);
+  if (!existing) return;
+  db.update(verifiedClaimsCache)
+    .set({
+      verificationCount: (existing.verificationCount ?? 1) + 1,
+      tokenSavings: (existing.tokenSavings ?? 0) + tokensSaved,
+    })
+    .where(eq(verifiedClaimsCache.claimHash, claimHash))
+    .run();
 }
 
 /**

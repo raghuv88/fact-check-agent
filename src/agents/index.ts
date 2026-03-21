@@ -11,6 +11,12 @@ import {
 } from "../types.js";
 import { tools, executeTool } from "../tools/index.js";
 import { TokenTracker } from "../middleware/tokenTracker.js";
+import {
+  hashClaim,
+  getCachedClaim,
+  saveCachedClaim,
+  recordCacheHit,
+} from "../db/repository.js";
 
 dotenv.config();
 
@@ -375,4 +381,71 @@ CRITICAL: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. D
     console.error("❌ Failed to generate report:", error);
     throw new Error("Report generation failed");
   }
+}
+
+/**
+ * Cache-aware wrapper around verifyClaim.
+ *
+ * On a cache hit  — returns the stored result instantly (0 LLM tokens consumed).
+ * On a cache miss — runs the full verifyClaim agent, then persists the result.
+ */
+export async function verifyClaimWithCache(
+  claim: Claim,
+  tracker?: TokenTracker,
+  claimIndex?: number,
+): Promise<VerificationResult> {
+  const claimHash = hashClaim(claim.claim);
+  const cached = getCachedClaim(claimHash);
+
+  if (cached) {
+    console.log(`  💾 CACHE HIT: claim "${claim.claim.substring(0, 60)}..."`);
+
+    const stepName = claimIndex !== undefined ? `Verify Claim ${claimIndex}` : `Verify ${claim.id}`;
+
+    if (tracker) {
+      tracker.record({
+        step: stepName,
+        agentType: 'verifier',
+        inputTokens: 0,
+        outputTokens: 0,
+        model: MODEL,
+        durationMs: 0,
+        cacheHit: true,
+      });
+    }
+
+    recordCacheHit(claimHash, cached.tokensPerVerification ?? 0);
+
+    return {
+      claim_id: claim.id,
+      claim: claim.claim,
+      verdict: cached.verdict as VerificationVerdict,
+      confidence: cached.confidence as ConfidenceLevel,
+      explanation: cached.explanation,
+      evidence: JSON.parse(cached.evidence),
+      search_queries_used: [],
+      verification_timestamp: new Date().toISOString(),
+      from_cache: true,
+    };
+  }
+
+  // Cache miss — run actual LLM verification
+  const result = await verifyClaim(claim, tracker, claimIndex);
+
+  // Determine tokens used from the last tracker step (set as savings baseline)
+  let tokensUsed = 0;
+  if (tracker) {
+    const steps = tracker.getSummary().steps;
+    const lastStep = steps[steps.length - 1];
+    if (lastStep) tokensUsed = lastStep.tokens.total;
+  }
+
+  try {
+    saveCachedClaim(claim.claim, result, tokensUsed);
+  } catch (err) {
+    // Unique constraint violation means another concurrent request already cached it — safe to ignore
+    console.warn('  ⚠️  Cache insert skipped (already cached):', (err as Error).message);
+  }
+
+  return result;
 }

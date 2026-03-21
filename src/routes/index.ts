@@ -3,7 +3,7 @@ import { body } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
 import { validateRequest } from '../middleware/errorHandler.js';
 import { factCheckArticle, displayReport, saveReport } from '../fact-checker.js';
-import { extractClaims, verifyClaim, generateReport } from '../agents/index.js';
+import { extractClaims, verifyClaimWithCache, generateReport } from '../agents/index.js';
 import { TokenTracker } from '../middleware/tokenTracker.js';
 import { createRequest, markProcessing, markComplete, markFailed, saveTokenUsageSteps } from '../db/repository.js';
 import * as fs from 'fs/promises';
@@ -279,13 +279,14 @@ function factCheckRouter(): Router {
           });
 
           try {
-            const result = await verifyClaim(claim, tracker, i + 1);
+            const result = await verifyClaimWithCache(claim, tracker, i + 1);
             verificationResults.push(result);
             send({
               type: 'claim_verified',
               result,
               index: i + 1,
               total: verifiable.length,
+              from_cache: result.from_cache ?? false,
             });
           } catch (err) {
             console.error(`Failed to verify claim ${claim.id}:`, err);

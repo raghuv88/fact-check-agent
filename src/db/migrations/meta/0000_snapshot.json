@@ -1,0 +1,90 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "0000_initial",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "fact_check_requests": {
+      "name": "fact_check_requests",
+      "columns": {
+        "id": { "name": "id", "type": "text", "primaryKey": true, "notNull": true, "autoincrement": false },
+        "created_at": { "name": "created_at", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "article_text": { "name": "article_text", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "total_tokens": { "name": "total_tokens", "type": "integer", "primaryKey": false, "notNull": false, "autoincrement": false, "default": 0 },
+        "total_cost_usd": { "name": "total_cost_usd", "type": "real", "primaryKey": false, "notNull": false, "autoincrement": false, "default": 0 },
+        "total_duration_ms": { "name": "total_duration_ms", "type": "integer", "primaryKey": false, "notNull": false, "autoincrement": false, "default": 0 },
+        "status": { "name": "status", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false, "default": "'pending'" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "token_usage": {
+      "name": "token_usage",
+      "columns": {
+        "id": { "name": "id", "type": "text", "primaryKey": true, "notNull": true, "autoincrement": false },
+        "timestamp": { "name": "timestamp", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "request_id": { "name": "request_id", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "agent_type": { "name": "agent_type", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "step_number": { "name": "step_number", "type": "integer", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "step_name": { "name": "step_name", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "model": { "name": "model", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "input_tokens": { "name": "input_tokens", "type": "integer", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "output_tokens": { "name": "output_tokens", "type": "integer", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "cost_usd": { "name": "cost_usd", "type": "real", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "duration_ms": { "name": "duration_ms", "type": "integer", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "cache_hit": { "name": "cache_hit", "type": "integer", "primaryKey": false, "notNull": false, "autoincrement": false, "default": false }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "token_usage_request_id_fact_check_requests_id_fk": {
+          "name": "token_usage_request_id_fact_check_requests_id_fk",
+          "tableFrom": "token_usage",
+          "tableTo": "fact_check_requests",
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "verified_claims_cache": {
+      "name": "verified_claims_cache",
+      "columns": {
+        "id": { "name": "id", "type": "text", "primaryKey": true, "notNull": true, "autoincrement": false },
+        "claim_text": { "name": "claim_text", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "claim_hash": { "name": "claim_hash", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "verdict": { "name": "verdict", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "confidence": { "name": "confidence", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "evidence": { "name": "evidence", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "verified_at": { "name": "verified_at", "type": "text", "primaryKey": false, "notNull": true, "autoincrement": false },
+        "verification_count": { "name": "verification_count", "type": "integer", "primaryKey": false, "notNull": false, "autoincrement": false, "default": 1 },
+        "token_savings": { "name": "token_savings", "type": "integer", "primaryKey": false, "notNull": false, "autoincrement": false, "default": 0 }
+      },
+      "indexes": {
+        "verified_claims_cache_claim_hash_unique": {
+          "name": "verified_claims_cache_claim_hash_unique",
+          "columns": ["claim_hash"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "verified_claims_cache_claim_hash_unique": {
+          "name": "verified_claims_cache_claim_hash_unique",
+          "columns": ["claim_hash"]
+        }
+      }
+    }
+  },
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}

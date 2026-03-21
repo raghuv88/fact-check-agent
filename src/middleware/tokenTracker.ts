@@ -37,6 +37,7 @@ export class TokenTracker {
     outputTokens: number;
     model: string;
     durationMs: number;
+    cacheHit?: boolean;
   }): TokenStepUsage {
     this.stepNumber++;
 
@@ -55,6 +56,7 @@ export class TokenTracker {
       tokens: { input: params.inputTokens, output: params.outputTokens, total },
       cost,
       durationMs: params.durationMs,
+      cacheHit: params.cacheHit ?? false,
       cumulative: {
         tokens: this.cumulativeTokens,
         cost: this.cumulativeCost,

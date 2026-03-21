@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { extractClaims, verifyClaim, generateReport } from "./agents/index.js";
+import { extractClaims, verifyClaimWithCache, generateReport } from "./agents/index.js";
 import { FactCheckReport } from "./types.js";
 import { TokenTracker } from "./middleware/tokenTracker.js";
 
@@ -41,7 +41,7 @@ export async function factCheckArticle(
       console.log(`\n[${i + 1}/${verifiableClaims.length}] Verifying...`);
 
       try {
-        const verification = await verifyClaim(claim, tracker, i + 1);
+        const verification = await verifyClaimWithCache(claim, tracker, i + 1);
         verificationResults.push(verification);
       } catch (error) {
         console.error(`❌ Failed to verify claim ${claim.id}:`, error);

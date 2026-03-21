@@ -43,4 +43,6 @@ export const verifiedClaimsCache = sqliteTable('verified_claims_cache', {
   verifiedAt: text('verified_at').notNull(),
   verificationCount: integer('verification_count').default(1),
   tokenSavings: integer('token_savings').default(0),
+  explanation: text('explanation').notNull().default(''),
+  tokensPerVerification: integer('tokens_per_verification').notNull().default(0),
 });
