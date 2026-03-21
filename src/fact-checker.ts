@@ -1,8 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { extractClaims, verifyClaimWithCache, generateReport } from "./agents/index.js";
-import { FactCheckReport } from "./types.js";
+import { resolveReferences } from "./agents/referenceResolver.js";
+import { FactCheckReport, VerificationResult } from "./types.js";
 import { TokenTracker } from "./middleware/tokenTracker.js";
+import { preprocessClaims, saveClaimVector } from "./preprocessing/index.js";
 
 /**
  * Main orchestrator: Coordinates all agents to fact-check an article
@@ -20,37 +22,85 @@ export async function factCheckArticle(
 
   try {
     // STEP 1: Extract claims from article
-    console.log("\n📋 Step 1/3: Extracting claims...");
+    console.log("\n📋 Step 1/5: Extracting claims...");
     const extractionResult = await extractClaims(articleText, tracker);
 
-    // Filter to only verifiable claims (opinions don't need verification)
-    const verifiableClaims = extractionResult.claims.filter(
-      (claim) => claim.category === "VERIFIABLE",
+    console.log(`\n✓ Found ${extractionResult.total_count} total claims`);
+
+    // STEP 2: Resolve references (pronouns, aliases, descriptive references)
+    console.log("\n🔗 Step 2/5: Resolving references...");
+    const { resolvedClaims, entityMap } = await resolveReferences(
+      { articleText, claims: extractionResult.claims },
+      tracker,
     );
+
+    const resolvedCount = resolvedClaims.filter((c) => c.resolutionsApplied.length > 0).length;
+    console.log(
+      `\n✓ Resolved ${resolvedCount} claims | ${Object.keys(entityMap).length} entities identified`,
+    );
+
+    // STEP 3: Preprocess — embedding similarity search (uses resolved claim text)
+    console.log("\n🧠 Step 3/5: Preprocessing claims (similarity search)...");
+    const plan = await preprocessClaims(resolvedClaims, entityMap);
 
     console.log(
-      `\n✓ Found ${verifiableClaims.length} verifiable claims to check`,
+      `\n✓ Plan: ${plan.stats.cacheHits} cache hits | ` +
+      `${plan.stats.relatedMatches} related | ` +
+      `${plan.stats.newClaims} new | ` +
+      `${plan.stats.groupsFormed} groups | ` +
+      `~${plan.stats.estimatedTokenSavings.toLocaleString()} tokens saved`,
     );
 
-    // STEP 2: Verify each claim
-    console.log("\n🔍 Step 2/3: Verifying claims...");
-    const verificationResults = [];
+    // STEP 4: Verify only claims that need it
+    console.log("\n🔍 Step 4/5: Verifying claims...");
+    const newResults: VerificationResult[] = [];
 
-    for (let i = 0; i < verifiableClaims.length; i++) {
-      const claim = verifiableClaims[i];
-      console.log(`\n[${i + 1}/${verifiableClaims.length}] Verifying...`);
+    for (let i = 0; i < plan.claimsToVerify.length; i++) {
+      const item = plan.claimsToVerify[i];
+      console.log(`\n[${i + 1}/${plan.claimsToVerify.length}] Verifying...`);
 
       try {
-        const verification = await verifyClaimWithCache(claim, tracker, i + 1);
-        verificationResults.push(verification);
+        const verification = await verifyClaimWithCache(item.claim, tracker, i + 1);
+        newResults.push(verification);
+
+        // Post-verification: save the embedding vector so the store grows over time
+        if (item.vector && !verification.from_cache) {
+          try {
+            saveClaimVector(
+              item.claim.claim,
+              item.vector,
+              verification.verdict,
+              verification.confidence,
+              verification.explanation,
+              verification.evidence,
+            );
+          } catch (err) {
+            // Non-fatal: duplicate or other constraint violation
+            console.warn("  ⚠️  Vector store insert skipped:", (err as Error).message);
+          }
+        }
       } catch (error) {
-        console.error(`❌ Failed to verify claim ${claim.id}:`, error);
-        // Continue with other claims
+        console.error(`❌ Failed to verify claim ${item.claim.id}:`, error);
       }
     }
 
-    // STEP 3: Generate report
-    console.log("\n📊 Step 3/3: Generating report...");
+    // Combine cached results with freshly verified results
+    const cachedResults: VerificationResult[] = plan.cachedClaims.map((c) => ({
+      claim_id: c.claim.id,
+      claim: c.claim.claim,
+      verdict: c.cachedResult.verdict,
+      confidence: c.cachedResult.confidence,
+      explanation: c.cachedResult.explanation + " [From vector cache]",
+      evidence: c.cachedResult.evidence,
+      search_queries_used: [],
+      verification_timestamp: new Date().toISOString(),
+      from_cache: true,
+    }));
+
+    const verificationResults = [...cachedResults, ...newResults];
+
+    // STEP 5: Generate report
+    console.log("\n📊 Step 5/5: Generating report...");
     const report = await generateReport(extractionResult, verificationResults, tracker);
 
     const tokenSummary = tracker.getSummary();

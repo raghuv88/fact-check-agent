@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateRequest } from '../middleware/errorHandler.js';
 import { factCheckArticle, displayReport, saveReport } from '../fact-checker.js';
 import { extractClaims, verifyClaimWithCache, generateReport } from '../agents/index.js';
+import { resolveReferences } from '../agents/referenceResolver.js';
+import type { Claim } from '../types.js';
 import { TokenTracker } from '../middleware/tokenTracker.js';
 import { createRequest, markProcessing, markComplete, markFailed, saveTokenUsageSteps } from '../db/repository.js';
 import * as fs from 'fs/promises';
@@ -256,17 +258,47 @@ function factCheckRouter(): Router {
         send({ type: 'status', message: 'Extracting claims from article…' });
         const extractionResult = await extractClaims(text, tracker);
 
-        const verifiable = extractionResult.claims.filter(c => c.category === 'VERIFIABLE');
-        const opinions   = extractionResult.claims.filter(c => c.category !== 'VERIFIABLE');
+        const rawVerifiable = extractionResult.claims.filter(c => c.category === 'VERIFIABLE');
+        const opinions      = extractionResult.claims.filter(c => c.category !== 'VERIFIABLE');
 
         send({
           type: 'claims_extracted',
-          verifiable_claims: verifiable,
+          verifiable_claims: rawVerifiable,
           opinion_claims: opinions,
-          total: verifiable.length,
+          total: rawVerifiable.length,
         });
 
-        // Step 2 — verify each claim
+        // Step 2 — resolve references
+        send({ type: 'status', message: 'Resolving references…' });
+        const { resolvedClaims } = await resolveReferences(
+          { articleText: text, claims: extractionResult.claims },
+          tracker,
+        );
+
+        const resolvedCount = resolvedClaims.filter(rc => rc.resolutionsApplied.length > 0).length;
+        const allResolutions = resolvedClaims.flatMap(rc => rc.resolutionsApplied);
+
+        send({
+          type: 'references_resolved',
+          data: {
+            resolvedCount,
+            entitiesFound: [...new Set(resolvedClaims.flatMap(rc => rc.entityIds))].length,
+            resolutions: allResolutions,
+          },
+        });
+
+        // Use resolved claim texts for verification
+        const verifiable: Claim[] = resolvedClaims
+          .filter(rc => rc.category === 'VERIFIABLE')
+          .map(rc => ({
+            id: rc.id,
+            claim: rc.resolvedClaim,
+            category: rc.category,
+            reason: '',
+            source_reference: rc.originalClaim !== rc.resolvedClaim ? rc.originalClaim : undefined,
+          }));
+
+        // Step 3 — verify each claim
         const verificationResults = [];
         for (let i = 0; i < verifiable.length; i++) {
           const claim = verifiable[i];
@@ -293,7 +325,7 @@ function factCheckRouter(): Router {
           }
         }
 
-        // Step 3 — generate final report
+        // Step 4 — generate final report
         send({ type: 'status', message: 'Generating final report…' });
         const report = await generateReport(extractionResult, verificationResults, tracker);
 

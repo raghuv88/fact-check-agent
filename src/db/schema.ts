@@ -19,7 +19,7 @@ export const tokenUsage = sqliteTable('token_usage', {
     .notNull()
     .references(() => factCheckRequests.id),
   agentType: text('agent_type', {
-    enum: ['claim_extractor', 'verifier', 'report_generator'],
+    enum: ['claim_extractor', 'reference_resolver', 'verifier', 'report_generator'],
   }).notNull(),
   stepNumber: integer('step_number').notNull(),
   stepName: text('step_name').notNull(),
@@ -45,4 +45,18 @@ export const verifiedClaimsCache = sqliteTable('verified_claims_cache', {
   tokenSavings: integer('token_savings').default(0),
   explanation: text('explanation').notNull().default(''),
   tokensPerVerification: integer('tokens_per_verification').notNull().default(0),
+});
+
+export const claimVectors = sqliteTable('claim_vectors', {
+  id: text('id').primaryKey(),
+  claimText: text('claim_text').notNull(),
+  claimTextNormalized: text('claim_text_normalized').notNull(),
+  embedding: text('embedding').notNull(),          // JSON stringified number[]
+  verdict: text('verdict').notNull(),
+  confidence: text('confidence').notNull(),
+  explanation: text('explanation').notNull(),
+  evidence: text('evidence').notNull(),            // JSON stringified EvidenceSource[]
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  verificationCount: integer('verification_count').default(0),
 });

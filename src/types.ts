@@ -76,8 +76,39 @@ export interface ArticleContent {
   fetch_timestamp: string;
 }
 
+// ============================================================
+// Reference Resolution Types
+// ============================================================
+
+export interface Resolution {
+  original: string;
+  resolvedTo: string;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface ResolvedClaim {
+  id: string;
+  originalClaim: string;
+  resolvedClaim: string;
+  category: 'VERIFIABLE' | 'OPINION' | 'AMBIGUOUS';
+  entityIds: string[];
+  resolutionsApplied: Resolution[];
+}
+
+export interface EntityInfo {
+  canonicalName: string;
+  type: 'PERSON' | 'ORGANIZATION' | 'LOCATION' | 'PRODUCT' | 'EVENT' | 'OTHER';
+  aliases: string[];
+  claimIds: string[];
+  description?: string;
+}
+
+export interface EntityMap {
+  [canonicalName: string]: EntityInfo;
+}
+
 // Token usage for a single processing step
-export type AgentType = 'claim_extractor' | 'verifier' | 'report_generator';
+export type AgentType = 'claim_extractor' | 'reference_resolver' | 'verifier' | 'report_generator';
 
 export interface TokenStepUsage {
   step: string;
